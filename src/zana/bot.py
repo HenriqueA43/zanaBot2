@@ -18,22 +18,22 @@ logger = logging.getLogger(__name__)
 class ZanaBot(commands.Bot):
     def __init__(self, config: Config):
         intents = nc.Intents.default()
+        intents.message_content = True
         super().__init__(intents=intents)
-        self.zana_config= config
+        self.zana_config=config
         self.plugin_manager = PluginManager(self)
 
     async def on_ready(self):
         assert self.user != None
         logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
-        self.plugin_manager.discover()
         await self.plugin_manager.load_all()
         logger.info(f"Loaded {len(self.extensions)} plugin(s).")
         [logger.info(f"\t- {ext.removeprefix('plugins.')}") for ext in list(self.extensions)] if self.extensions else None
 
         @self.slash_command(name="list_plugins", description="List available and loaded plugins")
         async def list_plugins(ctx: nc.Interaction):
-            available = self.plugin_manager.available_plugins
+            available = self.plugin_manager.discover()
             loaded = [ext.removeprefix('plugins.') for ext in list(self.extensions)]
             msg = (
                 f"```txt\n**LOADED**\n{'\n'.join(loaded) or 'none'}```\n"
@@ -48,5 +48,12 @@ class ZanaBot(commands.Bot):
         pass
 
     async def close(self):
-        pass
+        await self.plugin_manager.unload_all()
 
+def main():
+    setup_logging()
+    bot = ZanaBot(load_config(Path("config.json")))
+    bot.run(bot.zana_config.TOKEN)
+
+if __name__ == "__main__":
+    main()
