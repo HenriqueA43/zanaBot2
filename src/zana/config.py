@@ -10,12 +10,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Config:
     TOKEN: str
-    owner_id: str = "268128065618444289"
+    dev_ids: list[str]
+    GUILD: int
 
     @classmethod
     def from_dict(cls, data: dict) -> Config:
         return cls(
             TOKEN=data["discord_token"],
+            dev_ids=[str(i) for i in data["DEV_IDS"]],
+            GUILD=data["GUILD"]
         )
 
 def load_config(config_path: Path) -> Config:

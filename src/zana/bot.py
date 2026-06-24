@@ -21,25 +21,18 @@ class ZanaBot(commands.Bot):
         intents.message_content = True
         super().__init__(intents=intents)
         self.zana_config=config
-        self.plugin_manager = PluginManager(self)
 
     async def on_ready(self):
         assert self.user != None
         logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
-        await self.plugin_manager.load_all()
+        # await self.plugin_manager.load_all()
+        self.add_cog(PluginManager(self))
+        self.plugin_manager_cog = self.cogs["PluginManager"]
+        await self.get_cog("PluginManager").load_all()
+        await self.sync_application_commands(guild_id=self.zana_config.GUILD)
         logger.info(f"Loaded {len(self.extensions)} plugin(s).")
         [logger.info(f"\t- {ext.removeprefix('plugins.')}") for ext in list(self.extensions)] if self.extensions else None
-
-        @self.slash_command(name="list_plugins", description="List available and loaded plugins")
-        async def list_plugins(ctx: nc.Interaction):
-            available = self.plugin_manager.discover()
-            loaded = [ext.removeprefix('plugins.') for ext in list(self.extensions)]
-            msg = (
-                f"```txt\n**LOADED**\n{'\n'.join(loaded) or 'none'}```\n"
-                f"```txt\n**AVAILABLE***\n{'\n'.join(available) or 'none'}```"
-            )
-            await ctx.send(msg, ephemeral=True)
 
     async def on_connect(self):
         pass
@@ -48,11 +41,12 @@ class ZanaBot(commands.Bot):
         pass
 
     async def close(self):
-        await self.plugin_manager.unload_all()
+        await self.plugin_manager_cog.unload_all()
 
 def main():
     setup_logging()
-    bot = ZanaBot(load_config(Path("config.json")))
+    print(Path(__file__).parent.parent / "config.json")
+    bot = ZanaBot(load_config(Path(__file__).parent.parent / "config.json"))
     bot.run(bot.zana_config.TOKEN)
 
 if __name__ == "__main__":
