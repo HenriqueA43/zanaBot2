@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from sys import excepthook
 
 import nextcord as nc
 from nextcord.ext import commands
@@ -15,8 +16,17 @@ class PluginManager(commands.Cog):
         self.bot = bot
         self.plugin_dir = Path(__file__).parent.parent / "plugins"
 
+    async def _ensure_dev(self, ctx: nc.Interaction) -> bool:
+        if str(ctx.user.id) in self.bot.zana_config.dev_ids:
+            return True
+        await ctx.send("Unauthorized.", ephemeral=True)
+        return False
+
     @nc.slash_command(name="list_available_plugins", description="Lists available plugins to be loaded.")
     async def list_available_plugins(self, ctx: nc.Interaction) -> None:
+        if not self._ensure_dev(ctx):
+            logger.info(f"User {ctx.user} tried to run list_available_plugins")
+            return
         embed = nc.Embed(
             title="Available plugins:",
             description=f"{'\n'.join(self.discover())}"
@@ -45,9 +55,9 @@ class PluginManager(commands.Cog):
     @nc.slash_command(name="load_plugin", description="Loads a plugin by name")
     async def load(self, ctx: nc.Interaction, name: str) -> str:
         """Load a single plugin. Returns status message"""
-        if str(ctx.user.id) not in self.bot.zana_config.dev_ids:
-            await ctx.send("Unauthorized.", ephemeral=True)
-            return f"Unauthorized user. ID: {ctx.user.id}"
+        if not self._ensure_dev(ctx):
+            logger.info(f"User {ctx.user} tried to run load")
+            return ""
         try: 
             await ctx.response.defer(ephemeral=True)
             if (pname:=f"plugins.{name}") not in self.bot.extensions:
@@ -79,9 +89,9 @@ class PluginManager(commands.Cog):
 
     @nc.slash_command(name="unload_plugin", description="unloads a plugin from the bot")
     async def unload(self, ctx: nc.Interaction, name: str) -> str:
-        if str(ctx.user.id) not in self.bot.zana_config.dev_ids:
-            await ctx.send("Unauthorized.", ephemeral=True)
-            return f"Unauthorized user. ID: {ctx.user.id}"
+        if not self._ensure_dev(ctx):
+            logger.info(f"User {ctx.user} tried to run unload")
+            return ""
         try:
             await ctx.response.defer(ephemeral=True)
             msg = ""
@@ -141,9 +151,9 @@ class PluginManager(commands.Cog):
     
     @nc.slash_command(name="reload_plugin", description="Reloads a plugin by name")
     async def reload(self,ctx: nc.Interaction, name: str) -> str:
-        if str(ctx.user.id) not in self.bot.zana_config.dev_ids:
-            await ctx.send("Unauthorized.", ephemeral=True)
-            return f"Unauthorized user. ID: {ctx.user.id}"
+        if not self._ensure_dev(ctx):
+            logger.info(f"User {ctx.user} tried to run reload")
+            return ""
         await ctx.response.defer(ephemeral=True)
         if name == "all":
             ret = ""
@@ -160,7 +170,7 @@ class PluginManager(commands.Cog):
             return ret
     
     @reload.on_autocomplete("name")
-    async def reload_autocomplete(self, cts: nc.Interaction, current: str):
+    async def reload_autocomplete(self, ctx: nc.Interaction, current: str):
         current = current.strip()
         # get loaded plugins:
         pl = [i.replace('plugins.', '') for i in self.bot.extensions if current in i]

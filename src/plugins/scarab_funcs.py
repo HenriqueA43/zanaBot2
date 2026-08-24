@@ -3,12 +3,13 @@ from __future__ import annotations
 import nextcord as nc
 from nextcord.ext import commands
 import logging
+import asyncio
 
 from plugins.utils import scarab_regex_lib as srl
 
 logger = logging.getLogger(__name__)
 
-class scarab_cogs(commands.Cog):
+class ScarabCommands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
     
@@ -25,10 +26,10 @@ class scarab_cogs(commands.Cog):
         return returnstr + "```"
 
     @nc.slash_command(name="scarab_regex", description="Generates regex to vendor scarabs.")
-    async def scarab_regex(self, interaction: nc.Interaction, threshold: float = 0.0):
+    async def scarab_regex(self, interaction: nc.Interaction, threshold: float = 1.0):
         await interaction.response.defer(ephemeral=True) # acknowledges to discord that the message was received. Ephemeral so only the person who sent the message can see it
-        self.sr.update_value_threshold(threshold) if threshold else None
-        text = self.sr.gen_scarab_regex(print_now=False) 
+        self.sr.update_value_threshold(threshold) if self.sr.get_threshold() != threshold else None
+        text = await asyncio.to_thread(self.sr.gen_scarab_regex, print_now=False)
         embed = nc.Embed(title="Regex generated",
                         description=f"```{text}```",
                         colour=0xf5ed00,
@@ -46,8 +47,9 @@ class scarab_cogs(commands.Cog):
         pricesList = self.sr.prices.items()
         pricesList = [i[1] for i in pricesList]
         middle_of_list = pricesList[int(len(pricesList)/2)]
-        self.sr.update_value_threshold(middle_of_list)
-        self.sr.update_lists()
+        orig_threshold = self.sr.get_threshold()
+        await asyncio.to_thread(self.sr.update_value_threshold, middle_of_list)
+        await asyncio.to_thread(self.sr.update_lists)
 
         embedb = nc.Embed(
             title="First half:",
@@ -62,14 +64,15 @@ class scarab_cogs(commands.Cog):
             timestamp=self.sr.get_last_updated()
             )
         logger.info(f"User {interaction.user} used scarab_prices.")
+        await asyncio.to_thread(self.sr.update_value_threshold, orig_threshold)
         await interaction.followup.send(embed=embedb)
         await interaction.followup.send(embed=embeda, ephemeral=True)
 
     @nc.slash_command(name="scarab_flip", description="Provides regex with the cheapest N scarabs. Default 5")
     async def scarab_flip(self, interaction: nc.Interaction, n: int = 5):
         await interaction.response.defer(ephemeral=True) # acknowledges to discord that the message was received. Ephemeral so only the person who sent the message can see it
-        self.sr.update_lists()
-        text = self.sr.get_cheapest_n(n, False)
+        await asyncio.to_thread(self.sr.update_lists)
+        text = await asyncio.to_thread(self.sr.get_cheapest_n, n, False)
         embed = nc.Embed(
             title="Scarab Faustus Flipper!",
             colour=nc.Colour.brand_red(),
@@ -81,4 +84,4 @@ class scarab_cogs(commands.Cog):
         await interaction.followup.send(embed=embed)
 
 def setup(bot: commands.Bot):
-    bot.add_cog(scarab_cogs(bot))
+    bot.add_cog(ScarabCommands(bot))

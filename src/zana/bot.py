@@ -37,18 +37,13 @@ class ZanaBot(commands.Bot):
         logger.info(f"Loaded {len(self.extensions)} plugin(s).")
         [logger.info(f"\t- {ext.removeprefix('plugins.')}") for ext in list(self.extensions)] if self.extensions else None
 
-    async def on_connect(self):
-        pass
-
-    async def on_disconnect(self):
-        pass
-
     async def close(self):
         await self.plugin_manager_cog.unload_all()
+        await super().close()
     
 def main():
     setup_logging()
-    print(Path(__file__).parent.parent / "config.json")
+    # print(Path(__file__).parent.parent / "config.json")
     bot = ZanaBot(load_config(Path(__file__).parent.parent / "config.json"))
     bot.run(bot.zana_config.TOKEN)
 

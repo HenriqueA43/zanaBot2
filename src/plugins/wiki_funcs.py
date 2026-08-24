@@ -10,6 +10,9 @@ from bs4 import BeautifulSoup as bs
 
 logger = logging.getLogger(__name__)
 
+
+_WIKI_TIMEOUT = aiohttp.ClientTimeout(total=5)
+
 wikilink    = "http://www.poewiki.net/wiki/"
 wikipure    = "http://www.poewiki.net/"
 searchlink  = "http://www.poewiki.net/w/api.php"
@@ -17,6 +20,12 @@ searchlink  = "http://www.poewiki.net/w/api.php"
 wikilink2   = "http://www.poe2wiki.net/wiki/"
 wikipure2   = "http://www.poe2wiki.net/"
 searchlink2 = "http://www.poe2wiki.net/w/api.php"
+
+_WIKIS = {
+    "poe": [wikilink, wikipure, searchlink, "Wiki: "],
+    "poe2": [wikilink2, wikipure2, searchlink2, "Wiki POE2: "]
+}
+
 
 def match_all(reg: str, string) -> list[str]:
     m = re.findall(reg, string)
@@ -81,9 +90,9 @@ async def search_wiki_titles(query: str, limit: int = 15, searchlink_internal: s
     # returns only the titles in rankingorder
     return [r[0] for r in ranked] 
 
-async def create_embed_from_wiki(title: str, url: str, poe2: bool = False) -> nc.Embed:
-    wikipure_internal = wikipure if not poe2 else wikipure2 
-    async with aiohttp.ClientSession() as session:
+async def create_embed_from_wiki(title: str, url: str, source: str = "poe") -> nc.Embed:
+    wikipure_internal = _WIKIS[source][1]
+    async with aiohttp.ClientSession(timeout=_WIKI_TIMEOUT) as session:
         async with session.get(url) as resp:
             if resp.status == 200:
                 data = await resp.text()
@@ -93,7 +102,7 @@ async def create_embed_from_wiki(title: str, url: str, poe2: bool = False) -> nc
                 if len(text_snippet) > 700:
                     text_snippet = text_snippet[:700] + '...' # grabs 700 initial characters
                 # checks if there is an item card
-                title_embed = f"Wiki: {title}" if not poe2 else f"Wiki poe2: {title}"
+                title_embed = _WIKIS[source][3]
                 embed = nc.Embed(
                     color=nc.Color.blurple(),
                     title=title_embed,
@@ -110,78 +119,66 @@ async def create_embed_from_wiki(title: str, url: str, poe2: bool = False) -> nc
                 return None
     return embed
 
-class wiki_cogs(commands.Cog):
+class WikiCommands(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @nc.slash_command(name="wiki", description="Searches poewiki.net for the term.")
-    async def wiki(self, ctx: nc.Interaction, query: str):
-        # tells discord to wait while it process.
+
+    async def _lookup_and_reply(self, ctx: nc.Interaction, query:str, source: str = "poe"):
+        cfg = _WIKIS[source]
+        logger.info(f"User {ctx.user} searched for {query} for {source}")
         await ctx.response.defer(ephemeral=True)
         try:
-            url = f"{wikilink}{query.replace(' ', '_')}"
-            embed = await create_embed_from_wiki(query, url)
+            url = f"{cfg[0]}{query.replace(" ", "_")}"
+            embed = await create_embed_from_wiki(query, url, source)
         except Exception as e:
-            await ctx.followup.send("Search failed. please try again later")
-            logger.warning(f"Wiki1 failed with message: {e}")
-            return
-        logger.info(f"User {ctx.user} searched wiki1 for {query}")
+            logger.warning(f"{cfg[3]} failed. {e}")
+            return await ctx.followup.send("Search failed. please try again later", ephemeral=True)
+        if embed is None:
+            return await ctx.followup.send("No wiki page found for {url}.", ephemeral=True)
         await ctx.followup.send(embed=embed, ephemeral=True)
+
+    async def _autocomplete_helper(self, ctx: nc.Interaction, current: str, source: str = "poe"):
+        current = current.strip()
+        if not current:
+            return []
+        return await search_wiki_titles(current, limit = 5, searchlink_internal=_WIKIS[source][2])
+
+    @nc.slash_command(name="wiki", description="Searches poewiki.net for the term.")
+    async def wiki(self, ctx: nc.Interaction, query: str):
+        await self._lookup_and_reply(ctx, query, "poe")
 
     @wiki.on_autocomplete("query")
     async def wiki_autocomplete(self, ctx: nc.Interaction, current: str):
-        current = current.strip()
-        if not current:
-            return []
-        ranked = await search_wiki_titles(current, limit=5)
-        return ranked
+        return await self._autocomplete_helper(ctx, current, "poe")
 
     @nc.slash_command(name="wiki2", description="Searches poewiki.net for the term.")
     async def wiki2(self, ctx: nc.Interaction, query: str):
-        # tells discord to wait while it process.
-        await ctx.response.defer(ephemeral=True)
-        try:
-            url = f"{wikilink2}{query.replace(' ', '_')}"
-            embed = await create_embed_from_wiki(query, url)
-        except Exception as e:
-            await ctx.followup.send("Search failed. please try again later")
-            logger.warning(f"Wiki2 failed with message: {e}")
-            return
-        logger.info(f"User {ctx.user} searched wiki2 for {query}")
-        await ctx.followup.send(embed=embed, ephemeral=True)
+        await self._lookup_and_reply(ctx, query, "poe2")
 
     @wiki2.on_autocomplete("query")
     async def wiki2_autocomplete(self, ctx: nc.Interaction, current: str):
-        current = current.strip()
-        if not current:
-            return []
-        ranked = await search_wiki_titles(current, limit=5, searchlink_internal=searchlink2)
-        return ranked
+        return await self._autocomplete_helper(ctx, current, "poe2")
     
+
+    async def _reply_inline_wiki(self, msg: nc.message.Message, pattern: str, source: str):
+        cfg = _WIKIS[source]
+        if msg.author.bot or not (matches:=match_all(pattern, msg.content)):
+            return
+        for m in matches[:10]:
+            if ret := await search_wiki_titles(m,limit = 5, searchlink_internal=cfg[2]):
+                url = f"{cfg[0]}{ret[0].replace(' ', '_')}"
+                if embed := await create_embed_from_wiki(ret[0], url, source):
+                    await msg.channel.send(embed=embed)
+
 
     @commands.Cog.listener(name="on_message")
     async def poe1wiki(self, msg: nc.message.Message):
-        if msg.author == self.bot.user:
-            return
-        if matches:=match_all(r'\[\[([^<\]]*?)\]\]', msg.content):
-            logger.info(f'Got poe1 message: author={msg.author}, query={msg.content}')
-            for m in matches:
-                if ret := await search_wiki_titles(m, limit=5):
-                    wiki_link_exists = f'{wikilink}{ret[0].replace(' ', '_')}'
-                    if embed := await create_embed_from_wiki(ret[0], wiki_link_exists, False):
-                        await msg.channel.send(embed=embed)
+        await self._reply_inline_wiki(msg, r'\[\[([^<\]]*?)\]\]', "poe")
 
     @commands.Cog.listener(name="on_message")
     async def poe2wiki(self, msg: nc.message.Message):
-        if msg.author == self.bot.user:
-            return
-        if matches:=match_all(r'<<([^<\]]*?)>>', msg.content):
-            logger.info(f'Got poe2 message: author={msg.author}, query={msg.content}')
-            for m in matches:
-                if ret := await search_wiki_titles(m, limit=5):
-                    wiki_link_exists = f'{wikilink2}{ret[0].replace(' ', '_')}'
-                    if embed := await create_embed_from_wiki(ret[0], wiki_link_exists, True):
-                        await msg.channel.send(embed=embed)
-           
+        await self._reply_inline_wiki(msg, r'<<([^<\]]*?)>>', "poe2")
+
 def setup(bot: commands.Bot):
-    bot.add_cog(wiki_cogs(bot))
+    bot.add_cog(WikiCommands(bot))

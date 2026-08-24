@@ -9,6 +9,7 @@ import datetime
 DEBUGGER = False
 DEBUG = lambda x: print(x) if DEBUGGER else None
 PDEBUG = lambda x: pp.pprint(x) if DEBUGGER else None
+TIMEOUT = 2
 
 ## Colors for text coloring
 RED     = '\033[31m'
@@ -59,9 +60,9 @@ class scarab_regexer():
         if (now - self.__last_update > 600):
             DEBUG("Updating pricelist...")
              # Dynamically get the name of the current league
-            self.league = get("https://poe.ninja/poe1/api/data/index-state").json()["economyLeagues"][0]["name"]
+            self.league = get("https://poe.ninja/poe1/api/data/index-state",timeout=TIMEOUT).json()["economyLeagues"][0]["name"]
             # Get the updated price of each scarab in chaos
-            self.db = get(f"https://poe.ninja/poe1/api/economy/exchange/current/overview?league={self.league}&type=Scarab").json()
+            self.db = get(f"https://poe.ninja/poe1/api/economy/exchange/current/overview?league={self.league}&type=Scarab", timeout=TIMEOUT).json()
             self.names_clean: Dict[str, str] = {item["id"]: item["name"] for item in self.db["items"]}
             self.names = {id: f"^{name.lower()}$" for id, name in self.names_clean.items()}
             self.prices: Dict[str, float] = {self.names[item["id"]]: item["primaryValue"] for item in self.db["lines"]}
