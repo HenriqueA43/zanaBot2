@@ -13,3 +13,4 @@ wheels/
 logs/
 config.json
 __pycache__/
+continue_opencode
