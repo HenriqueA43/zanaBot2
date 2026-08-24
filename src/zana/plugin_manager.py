@@ -24,14 +24,14 @@ class PluginManager(commands.Cog):
         await ctx.send(embed=embed, ephemeral=True)
 
 
-    def discover(self) -> list[str]:
+    def discover(self, quiet=False) -> list[str]:
         """Return a list of all available plugins on disk (without .py)"""
         available = sorted(f.stem for f in self.plugin_dir.glob("*.py") if f.stem not in ["__init__", "__main__"])
-        logger.info(f"Discovered plugins:\n\t- {'\n\t - '.join(available)}") if available else None
+        logger.info(f"Discovered plugins:\n\t- {'\n\t - '.join(available)}") if (available and not quiet) else None
         return available
 
-    async def load_all(self) -> None:
-        available = self.discover()
+    async def load_all(self, plugin_list: list[str]) -> None:
+        available = plugin_list
         for p in available:
             try: 
                 if (pname:=f"plugins.{p}") not in self.bot.extensions:
@@ -41,15 +41,6 @@ class PluginManager(commands.Cog):
                 logger.exception(f"Failed to load {p}: {e}")
         await self.bot.sync_application_commands()
 
-    
-    # @nc.slash_command(name="load_all", description="Loads all available plugins.")
-    # async def load_all(self, ctx: nc.Interaction) -> None:
-    #     await ctx.response.defer()
-    #     if str(ctx.user.id) not in self.bot.zana_config.dev_ids:
-    #         await ctx.followup.send("Unauthorized.", ephemeral=True)
-    #         return
-    #     await self._load_all()
-    #     await ctx.followup.send("Loaded all plugins.", ephemeral=True)
 
     @nc.slash_command(name="load_plugin", description="Loads a plugin by name")
     async def load(self, ctx: nc.Interaction, name: str) -> str:
@@ -77,6 +68,15 @@ class PluginManager(commands.Cog):
             await ctx.followup.send(msg, ephemeral=True)
             return msg
 
+    @load.on_autocomplete("name")
+    async def load_autocomplete(self, Interaction: nc.Interaction, current: str):
+        current = current.strip()
+        if not current:
+            return []
+        # get available plugins:
+        pl = self.discover(quiet=True)
+        return [i for i in pl if current in i]
+
     @nc.slash_command(name="unload_plugin", description="unloads a plugin from the bot")
     async def unload(self, ctx: nc.Interaction, name: str) -> str:
         if str(ctx.user.id) not in self.bot.zana_config.dev_ids:
@@ -87,6 +87,7 @@ class PluginManager(commands.Cog):
             msg = ""
             if (pname:=f"plugins.{name}") in self.bot.extensions:
                 self.bot.unload_extension(pname)
+                #unloads on_message commands
                 msg = f"Successfully unloaded {pname}."
                 logger.info(msg)
                 await self.bot.sync_application_commands()
@@ -102,6 +103,14 @@ class PluginManager(commands.Cog):
             await ctx.followup.send(msg)
             logger.exception(msg)
             return msg
+    
+    @unload.on_autocomplete("name")
+    async def unload_autocomplete(self, ctx: nc.Interaction, current: str):
+        current = current.strip()
+        # get loaded plugins:
+        pl = [i.replace('plugins.', '') for i in self.bot.extensions if current in i]
+        return pl
+        
 
     async def unload_all(self):
         for p in self.bot.extensions:
@@ -149,4 +158,11 @@ class PluginManager(commands.Cog):
             await ctx.followup.send(ret, ephemeral=True)
             await self.bot.sync_application_commands()
             return ret
+    
+    @reload.on_autocomplete("name")
+    async def reload_autocomplete(self, cts: nc.Interaction, current: str):
+        current = current.strip()
+        # get loaded plugins:
+        pl = [i.replace('plugins.', '') for i in self.bot.extensions if current in i]
+        return pl
 

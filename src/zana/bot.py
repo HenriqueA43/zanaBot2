@@ -2,6 +2,7 @@
 Zana Bot v2
 Discord bot with path of exile utilities
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -16,6 +17,8 @@ from .plugin_manager import PluginManager
 logger = logging.getLogger(__name__)
 
 class ZanaBot(commands.Bot):
+
+
     def __init__(self, config: Config):
         intents = nc.Intents.default()
         intents.message_content = True
@@ -29,7 +32,7 @@ class ZanaBot(commands.Bot):
         # await self.plugin_manager.load_all()
         self.add_cog(PluginManager(self))
         self.plugin_manager_cog = self.cogs["PluginManager"]
-        await self.get_cog("PluginManager").load_all()
+        await self.get_cog("PluginManager").load_all(self.zana_config.default_plugins)
         await self.sync_application_commands(guild_id=self.zana_config.GUILD)
         logger.info(f"Loaded {len(self.extensions)} plugin(s).")
         [logger.info(f"\t- {ext.removeprefix('plugins.')}") for ext in list(self.extensions)] if self.extensions else None
@@ -42,7 +45,7 @@ class ZanaBot(commands.Bot):
 
     async def close(self):
         await self.plugin_manager_cog.unload_all()
-
+    
 def main():
     setup_logging()
     print(Path(__file__).parent.parent / "config.json")

@@ -26,4 +26,4 @@ def setup_logging(level: str = "INFO") -> None:
     file_handler = RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=3)
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
-
+    

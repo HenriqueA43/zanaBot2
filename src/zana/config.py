@@ -7,18 +7,20 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
     TOKEN: str
     dev_ids: list[str]
     GUILD: int
+    default_plugins: list[str]
 
     @classmethod
     def from_dict(cls, data: dict) -> Config:
         return cls(
             TOKEN=data["discord_token"],
             dev_ids=[str(i) for i in data["DEV_IDS"]],
-            GUILD=data["GUILD"]
+            GUILD=data["GUILD"],
+            default_plugins=data["default_plugins"]
         )
 
 def load_config(config_path: Path) -> Config:
