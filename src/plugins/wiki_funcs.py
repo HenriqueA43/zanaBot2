@@ -165,6 +165,7 @@ class WikiCommands(commands.Cog):
         cfg = _WIKIS[source]
         if msg.author.bot or not (matches:=match_all(pattern, msg.content)):
             return
+        logger.info(f"User {msg.author} searched for {m} in {source} wiki.")
         for m in matches[:10]:
             if ret := await search_wiki_titles(m,limit = 5, searchlink_internal=cfg[2]):
                 url = f"{cfg[0]}{ret[0].replace(' ', '_')}"
