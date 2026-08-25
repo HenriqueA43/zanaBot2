@@ -1,0 +1,8 @@
+services:
+  zana:
+    build: .
+    restart: unless-stopped
+    environment:
+      - TZ=America/Sao_Paulo
+    volumes:
+      - .:/zana-app
