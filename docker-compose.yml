@@ -1,5 +1,6 @@
 services:
   zana:
+    container_name: zanaBot2
     build: .
     restart: unless-stopped
     environment:

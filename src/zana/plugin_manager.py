@@ -24,7 +24,7 @@ class PluginManager(commands.Cog):
 
     @nc.slash_command(name="list_available_plugins", description="Lists available plugins to be loaded.")
     async def list_available_plugins(self, ctx: nc.Interaction) -> None:
-        if not self._ensure_dev(ctx):
+        if not await self._ensure_dev(ctx):
             logger.info(f"User {ctx.user} tried to run list_available_plugins")
             return
         embed = nc.Embed(
@@ -55,7 +55,7 @@ class PluginManager(commands.Cog):
     @nc.slash_command(name="load_plugin", description="Loads a plugin by name")
     async def load(self, ctx: nc.Interaction, name: str) -> str:
         """Load a single plugin. Returns status message"""
-        if not self._ensure_dev(ctx):
+        if not await self._ensure_dev(ctx):
             logger.info(f"User {ctx.user} tried to run load")
             return ""
         try: 
@@ -89,7 +89,7 @@ class PluginManager(commands.Cog):
 
     @nc.slash_command(name="unload_plugin", description="unloads a plugin from the bot")
     async def unload(self, ctx: nc.Interaction, name: str) -> str:
-        if not self._ensure_dev(ctx):
+        if not await self._ensure_dev(ctx):
             logger.info(f"User {ctx.user} tried to run unload")
             return ""
         try:
@@ -151,7 +151,7 @@ class PluginManager(commands.Cog):
     
     @nc.slash_command(name="reload_plugin", description="Reloads a plugin by name")
     async def reload(self,ctx: nc.Interaction, name: str) -> str:
-        if not self._ensure_dev(ctx):
+        if not await self._ensure_dev(ctx):
             logger.info(f"User {ctx.user} tried to run reload")
             return ""
         await ctx.response.defer(ephemeral=True)
